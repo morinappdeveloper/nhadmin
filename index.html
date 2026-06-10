@@ -136,7 +136,7 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
     <div class="login-sub">ADMIN PANEL</div>
     <div class="err" id="login-err">INVALID CREDENTIALS</div>
     <label class="fl">EMAIL</label>
-    <input type="email" class="fi" id="l-email" placeholder="admin@nothumans.com"/>
+    <input type="email" class="fi" id="l-email" placeholder="nhadmin777@gmail.com" value="nhadmin777@gmail.com"/>
     <label class="fl">PASSWORD</label>
     <input type="password" class="fi" id="l-pass" placeholder="••••••••" style="margin-bottom:16px;"/>
     <button class="login-btn" onclick="doLogin()">ACCESS ADMIN PANEL</button>
@@ -295,6 +295,7 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
         <button class="btn-green" style="flex:1;" onclick="updateStatus('confirmed')">CONFIRM PAYMENT</button>
         <button class="btn-red" style="flex:1;" onclick="updateStatus('rejected')">REJECT</button>
       </div>
+      <button onclick="deleteCurrentRegistration()" class="btn-red" style="width:100%;margin-top:12px;font-weight:700;">🗑️ DELETE REGISTRATION</button>
     </div>
   </div>
 </div>
@@ -304,7 +305,7 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
 import{getAuth,signInWithEmailAndPassword,signInWithPopup,GoogleAuthProvider,onAuthStateChanged,signOut}from'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
-import{getFirestore,collection,getDocs,addDoc,updateDoc,deleteDoc,doc,setDoc,serverTimestamp,query,orderBy,where,getDoc}from'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+import{getFirestore,collection,getDocs,addDoc,updateDoc,deleteDoc,doc,setDoc,serverTimestamp,query,orderBy,where,getDoc,increment,onSnapshot}from'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrg8CHeOGiPR9kFLSTreRbP4p8TGF9jMY",
@@ -324,7 +325,19 @@ let allRegs=[];
 let currentRegDocId=null;
 
 onAuthStateChanged(auth,user=>{
-  if(user){document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';loadAll();}
+  if(user){
+    if(user.email !== "nhadmin777@gmail.com"){
+      // Not the real admin - show error and sign out
+      const err=document.getElementById('login-err');
+      err.textContent = 'ACCESS DENIED — Only NH Admin allowed';
+      err.style.display='block';
+      setTimeout(async()=>{ await signOut(auth); location.reload(); }, 1800);
+      return;
+    }
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    loadAll();
+  }
 });
 
 window.doLogin=async()=>{
@@ -512,9 +525,35 @@ window.handleModeChange = function() {
 };
 
 window.deleteMatch=async(id)=>{
-  if(!confirm('DELETE THIS MATCH?'))return;
-  try{await deleteDoc(doc(db,'matches',id));showToast('MATCH DELETED');await loadMatches();}
-  catch(e){showToast('ERROR DELETING');}
+  if(!confirm('DELETE THIS MATCH? This will also permanently delete ALL registrations and slot data for this match.'))return;
+  try{
+    // 1. Delete all registrations for this match
+    const regQuery = query(collection(db,'registrations'), where('matchId','==',id));
+    const regSnap = await getDocs(regQuery);
+    let deletedRegs = 0;
+    for(const d of regSnap.docs){
+      await deleteDoc(doc(db,'registrations',d.id));
+      deletedRegs++;
+    }
+
+    // 2. Delete slotCounts doc for this match (cleanup)
+    try{
+      await deleteDoc(doc(db,'slotCounts',id));
+    }catch(e){ /* ignore if not exists */ }
+
+    // 3. Finally delete the match itself
+    await deleteDoc(doc(db,'matches',id));
+
+    showToast(`MATCH DELETED (${deletedRegs} registrations removed)`);
+    await loadMatches();
+    // If currently viewing registrations, refresh that tab too
+    if(document.getElementById('tab-registrations')?.classList.contains('active')){
+      await loadRegistrations();
+    }
+  }catch(e){
+    console.error(e);
+    showToast('ERROR DELETING MATCH');
+  }
 };
 
 // ── REGISTRATIONS ──
@@ -572,14 +611,73 @@ window.openRegModal=(id)=>{
 
 window.closeRegModal=()=>document.getElementById('reg-modal').classList.remove('open');
 
-window.updateStatus=async(status)=>{
+window.updateStatus=async(newStatus)=>{
   if(!currentRegDocId)return;
   try{
-    await updateDoc(doc(db,'registrations',currentRegDocId),{status});
-    showToast('STATUS: '+status.toUpperCase());
+    // Get current registration to know matchId and previous status
+    const regSnap=await getDoc(doc(db,'registrations',currentRegDocId));
+    if(!regSnap.exists()){showToast('REG NOT FOUND');return;}
+    const regData=regSnap.data();
+    const matchId=regData.matchId;
+    const prevStatus=regData.status||'verifying';
+
+    // If confirming: check if slots are full first
+    if(newStatus==='confirmed'){
+      const matchSnap=await getDoc(doc(db,'matches',matchId));
+      const totalSlots=matchSnap.exists()?parseInt(matchSnap.data().slots)||12:12;
+      const scSnap=await getDoc(doc(db,'slotCounts',matchId));
+      const currentConfirmed=scSnap.exists()?(scSnap.data().confirmed||0):0;
+      if(currentConfirmed>=totalSlots){
+        showToast('SLOTS FULL — CANNOT CONFIRM');
+        return;
+      }
+    }
+
+    // Update the registration status
+    await updateDoc(doc(db,'registrations',currentRegDocId),{status:newStatus});
+
+    // Recalculate confirmed count accurately from all registrations (most reliable)
+    const confirmedQuery = query(collection(db,'registrations'), where('matchId','==',matchId), where('status','==','confirmed'));
+    const confirmedSnap = await getDocs(confirmedQuery);
+    const newConfirmedCount = confirmedSnap.size;
+
+    const slotRef = doc(db,'slotCounts',matchId);
+    await setDoc(slotRef, {confirmed: newConfirmedCount}, {merge: true});
+
+    showToast('STATUS: '+newStatus.toUpperCase());
     closeRegModal();
     await loadRegistrations();
-  }catch(e){showToast('ERROR UPDATING');}
+  }catch(e){console.error(e);showToast('ERROR UPDATING');}
+};
+
+window.deleteCurrentRegistration=async()=>{
+  if(!currentRegDocId) return;
+  if(!confirm('DELETE THIS REGISTRATION PERMANENTLY? This cannot be undone.')) return;
+
+  try{
+    // Get matchId before deleting
+    const regSnap=await getDoc(doc(db,'registrations',currentRegDocId));
+    const matchId = regSnap.exists() ? regSnap.data().matchId : null;
+
+    // Delete the registration
+    await deleteDoc(doc(db,'registrations',currentRegDocId));
+
+    // Recalculate confirmed count for the match
+    if(matchId){
+      const confirmedQuery = query(collection(db,'registrations'), where('matchId','==',matchId), where('status','==','confirmed'));
+      const confirmedSnap = await getDocs(confirmedQuery);
+      const newConfirmedCount = confirmedSnap.size;
+      const slotRef = doc(db,'slotCounts',matchId);
+      await setDoc(slotRef, {confirmed: newConfirmedCount}, {merge: true});
+    }
+
+    showToast('REGISTRATION DELETED');
+    closeRegModal();
+    await loadRegistrations();
+  }catch(e){
+    console.error(e);
+    showToast('ERROR DELETING REGISTRATION');
+  }
 };
 
 // ── HERO ──
