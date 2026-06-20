@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
 <title>Admin — NOT HUMANS</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 *{-webkit-tap-highlight-color:rgba(0,0,0,0);box-sizing:border-box;margin:0;padding:0;}
 button,a,div,span,img,input,textarea,select,label{outline:none;-webkit-tap-highlight-color:transparent;}
@@ -320,6 +321,12 @@ const auth=getAuth(app);
 const db=getFirestore(app);
 const IMGBB_KEY='405018efab5e2bd5e75f4dd0040a41c3';
 
+// ── EMAILJS CONFIG ──
+const EMAILJS_PUBLIC_KEY  = 'fPo7bBCsfWKPwSq7y';
+const EMAILJS_SERVICE_ID  = 'service_73ushuq';
+const EMAILJS_TEMPLATE_ID = 'template_789jos9';
+if(window.emailjs){ window.emailjs.init({publicKey: EMAILJS_PUBLIC_KEY}); }
+
 let allMatches=[];
 let allRegs=[];
 let currentRegDocId=null;
@@ -611,6 +618,61 @@ window.openRegModal=(id)=>{
 
 window.closeRegModal=()=>document.getElementById('reg-modal').classList.remove('open');
 
+// ── MODE-AWARE CONFIRMATION EMAIL (EmailJS) ──
+function getModeLabel(modeStr){
+  const s=(modeStr||'').toLowerCase();
+  if(s.includes('4v4 mac')||s.includes('4v4mac')||s.includes('mac')) return '4v4 MAC';
+  if(s.includes('1v1')||s.includes('1 vs 1')) return '1v1 (SOLO)';
+  if(s.includes('2v2')||s.includes('2 vs 2')) return '2v2 (DUO)';
+  if(s.includes('4v4')) return '4v4 (SQUAD)';
+  return modeStr || 'SQUAD';
+}
+
+// Look up the recipient's email — registrations store it directly as `userEmail`
+// (written by payment.html). Fall back to a `users/{userId}` doc lookup just in case
+// an older registration doesn't have userEmail saved.
+async function resolveRecipientEmail(regData){
+  if(regData.userEmail) return regData.userEmail;
+  if(regData.email) return regData.email;
+  if(regData.userId){
+    try{
+      const uSnap = await getDoc(doc(db,'users',regData.userId));
+      if(uSnap.exists()) return uSnap.data().email || null;
+    }catch(e){console.error(e);}
+  }
+  return null;
+}
+
+async function sendConfirmationEmail(regData){
+  if(!window.emailjs){ showToast('CONFIRMED (EMAILJS NOT LOADED)'); return; }
+  const recipientEmail = await resolveRecipientEmail(regData);
+  if(!recipientEmail){ showToast('CONFIRMED (NO EMAIL ON FILE)'); return; }
+
+  const modeStr=regData.mode||'';
+  const modeLabel=getModeLabel(modeStr);
+  const isSolo = modeLabel.includes('1v1');
+  const displayName = isSolo
+    ? ((regData.players&&regData.players[0]&&regData.players[0].ign) || regData.teamName || '—')
+    : (regData.teamName || '—');
+
+  const templateParams={
+    to_email: recipientEmail,
+    to_name: displayName,
+    match_name: regData.matchName || '—',
+    mode_label: modeLabel,
+    amount: regData.entryFee || 0,
+    reg_id: regData.invId || currentRegDocId || '—'
+  };
+
+  try{
+    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+    showToast('CONFIRMED + EMAIL SENT');
+  }catch(e){
+    console.error(e);
+    showToast('CONFIRMED (EMAIL FAILED)');
+  }
+}
+
 window.updateStatus=async(newStatus)=>{
   if(!currentRegDocId)return;
   try{
@@ -644,7 +706,12 @@ window.updateStatus=async(newStatus)=>{
     const slotRef = doc(db,'slotCounts',matchId);
     await setDoc(slotRef, {confirmed: newConfirmedCount}, {merge: true});
 
-    showToast('STATUS: '+newStatus.toUpperCase());
+    if(newStatus==='confirmed'){
+      // Send a mode-aware confirmation email (1v1 / 2v2 / 4v4 / 4v4 Mac) showing the amount paid
+      await sendConfirmationEmail(regData);
+    }else{
+      showToast('STATUS: '+newStatus.toUpperCase());
+    }
     closeRegModal();
     await loadRegistrations();
   }catch(e){console.error(e);showToast('ERROR UPDATING');}
@@ -705,3 +772,4 @@ document.getElementById('l-pass').addEventListener('keydown',e=>{if(e.key==='Ent
 </script>
 </body>
 </html>
+
