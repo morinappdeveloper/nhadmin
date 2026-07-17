@@ -62,6 +62,14 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
 .finput{width:100%;background:var(--gray);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-family:'Orbitron',sans-serif;font-size:12px;font-weight:600;color:var(--black);transition:border-color 0.2s;}
 .finput:focus{border-color:var(--blue);background:#fff;}
 .finput::placeholder{color:#b0b8d0;font-weight:500;}
+
+/* MAINTENANCE TOGGLE SWITCH - Green when ON */
+.switch{position:relative;display:inline-block;width:52px;height:28px;}
+.switch input{opacity:0;width:0;height:0;}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#2a2d33;border-radius:28px;transition:.3s;border:1px solid #444;}
+.slider:before{position:absolute;content:"";height:22px;width:22px;left:3px;bottom:2px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+input:checked + .slider{background:#22c55e;border-color:#16a34a;}
+input:checked + .slider:before{transform:translateX(24px);}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .ffull{grid-column:1/-1;}
 
@@ -273,6 +281,7 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
       <div class="card-body">
         <div class="fgroup"><label class="flabel">UPI ID (for QR code)</label><input type="text" class="finput" id="set-upi" placeholder="yourname@upi"/></div>
         <div class="fgroup"><label class="flabel">WHATSAPP NUMBER</label><input type="tel" class="finput" id="set-wa" placeholder="91XXXXXXXXXX"/></div>
+        <div class="fgroup"><label class="flabel">ADMIN WHATSAPP NUMBER (for payment verification codes)</label><input type="tel" class="finput" id="set-admin-wa" placeholder="91XXXXXXXXXX or XXXXXXXXXX"/></div>
         <div class="fgroup"><label class="flabel">INSTAGRAM HANDLE</label><input type="text" class="finput" id="set-ig" placeholder="@nothumans"/></div>
         <div class="fgroup"><label class="flabel">DISCORD INVITE LINK</label><input type="text" class="finput" id="set-dc" placeholder="https://discord.gg/..."/></div>
         <button class="btn-blue" onclick="saveSettings()">SAVE SETTINGS</button>
@@ -284,6 +293,45 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
         <a href="index.html" target="_blank" class="btn-blue" style="display:block;text-align:center;text-decoration:none;">OPEN TOURNAMENT SITE</a>
       </div>
     </div>
+
+    <!-- MAINTENANCE MODE -->
+    <div class="card">
+      <div class="card-header"><h2>MAINTENANCE MODE</h2></div>
+      <div class="card-body">
+        <div class="fgroup" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
+          <div>
+            <div class="flabel" style="margin-bottom:2px;">ENABLE MAINTENANCE MODE</div>
+            <div style="font-size:10px;color:#888;">When ON, users see maintenance screen with reason below</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="set-maint-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="fgroup">
+          <label class="flabel">MAINTENANCE REASON (shown to users)</label>
+          <textarea id="set-maint-reason" class="finput" placeholder="We are updating tournaments &amp; adding new features. Back online soon!" rows="3" style="resize:vertical;min-height:70px;"></textarea>
+        </div>
+        <button class="btn-blue" onclick="saveSettings()">SAVE SETTINGS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERIFY CODE MODAL (opens on top of the registration modal) -->
+  <div class="modal-bg" id="verify-code-modal" style="z-index:650;">
+    <div class="modal" style="max-width:360px;">
+      <div class="modal-handle"></div>
+      <div class="modal-title">VERIFY PAYMENT CODE<button class="modal-close" onclick="closeVerifyCodeModal()">&#x2715;</button></div>
+      <div style="padding:20px 22px 10px;">
+        <div style="font-size:12px;color:#555;margin-bottom:14px;line-height:1.4;">Enter the <strong>verification code</strong> the user sent you via WhatsApp.<br>If correct → CONFIRM. Wrong code → auto REJECT.</div>
+        <input type="text" id="verify-code-input" class="finput" placeholder="NH-XXXXX" style="text-align:center;font-size:20px;letter-spacing:4px;font-family:'Orbitron',sans-serif;font-weight:800;" />
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn-red" style="flex:1;font-size:12px;" onclick="verifyAndUpdate(false)">WRONG CODE — REJECT</button>
+          <button class="btn-green" style="flex:1;font-size:12px;" onclick="verifyAndUpdate(true)">VERIFY &amp; CONFIRM</button>
+        </div>
+        <button onclick="closeVerifyCodeModal()" style="width:100%;margin-top:12px;background:none;border:1px solid #ccc;color:#666;font-size:11px;padding:8px;border-radius:6px;">CANCEL — GO BACK TO DETAILS</button>
+      </div>
+    </div>
   </div>
 
   <!-- REG DETAIL MODAL -->
@@ -293,7 +341,7 @@ nav{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1.5px solid 
       <div class="modal-title">REGISTRATION DETAILS<button class="modal-close" onclick="closeRegModal()">&#x2715;</button></div>
       <div id="reg-modal-body"></div>
       <div style="display:flex;gap:10px;margin-top:16px;">
-        <button class="btn-green" style="flex:1;" onclick="updateStatus('confirmed')">CONFIRM PAYMENT</button>
+        <button class="btn-green" style="flex:1;" onclick="promptVerificationCode()">CONFIRM PAYMENT</button>
         <button class="btn-red" style="flex:1;" onclick="updateStatus('rejected')">REJECT</button>
       </div>
       <button onclick="deleteCurrentRegistration()" class="btn-red" style="width:100%;margin-top:12px;font-weight:700;">🗑️ DELETE REGISTRATION</button>
@@ -618,6 +666,48 @@ window.openRegModal=(id)=>{
 
 window.closeRegModal=()=>document.getElementById('reg-modal').classList.remove('open');
 
+window.promptVerificationCode=()=>{
+  if(!currentRegDocId){showToast('NO REG SELECTED');return;}
+  const modal=document.getElementById('verify-code-modal');
+  modal.classList.add('open');
+  const inp=document.getElementById('verify-code-input');
+  inp.value='';
+  setTimeout(()=>inp.focus(), 50);
+};
+
+window.closeVerifyCodeModal=()=>{
+  document.getElementById('verify-code-modal').classList.remove('open');
+};
+
+window.verifyAndUpdate=async(shouldConfirm)=>{
+  const codeInp=document.getElementById('verify-code-input');
+  const entered=(codeInp.value||'').trim().toUpperCase();
+  closeVerifyCodeModal();
+  if(!currentRegDocId){showToast('NO REG');return;}
+  if(!entered){showToast('ENTER VERIFICATION CODE');return;}
+  try{
+    const regSnap=await getDoc(doc(db,'registrations',currentRegDocId));
+    if(!regSnap.exists()){showToast('REG NOT FOUND');return;}
+    const regData=regSnap.data();
+    const stored=(regData.verifyCode||'').toUpperCase().trim();
+    if(shouldConfirm){
+      if(stored && entered===stored){
+        await updateStatus('confirmed');
+        showToast('✅ CODE VERIFIED — PAYMENT CONFIRMED');
+      }else{
+        await updateStatus('rejected');
+        showToast('❌ WRONG CODE — REGISTRATION REJECTED');
+      }
+    }else{
+      await updateStatus('rejected');
+      showToast('REJECTED');
+    }
+  }catch(e){
+    console.error(e);
+    showToast('ERROR VERIFYING CODE');
+  }
+};
+
 // ── MODE-AWARE CONFIRMATION EMAIL (EmailJS) ──
 function getModeLabel(modeStr){
   const s=(modeStr||'').toLowerCase();
@@ -759,10 +849,28 @@ window.saveHero=async()=>{
 
 // ── SETTINGS ──
 window.loadSettings=async()=>{
-  try{const snap=await getDoc(doc(db,'settings','global'));if(snap.exists()){const d=snap.data();document.getElementById('set-upi').value=d.upiId||'';document.getElementById('set-wa').value=d.whatsapp||'';document.getElementById('set-ig').value=d.instagram||'';document.getElementById('set-dc').value=d.discord||'';}}catch(e){}
+  try{const snap=await getDoc(doc(db,'settings','global'));if(snap.exists()){const d=snap.data();
+    document.getElementById('set-upi').value=d.upiId||'';
+    document.getElementById('set-wa').value=d.whatsapp||'';
+    document.getElementById('set-admin-wa').value=d.adminWhatsapp||d.whatsapp||'';
+    document.getElementById('set-ig').value=d.instagram||'';
+    document.getElementById('set-dc').value=d.discord||'';
+    const tog=document.getElementById('set-maint-toggle');
+    if(tog) tog.checked = !!d.maintenanceMode;
+    const rea=document.getElementById('set-maint-reason');
+    if(rea) rea.value = d.maintenanceReason || '';
+  }}catch(e){}
 };
 window.saveSettings=async()=>{
-  const data={upiId:document.getElementById('set-upi').value.trim(),whatsapp:document.getElementById('set-wa').value.trim(),instagram:document.getElementById('set-ig').value.trim(),discord:document.getElementById('set-dc').value.trim()};
+  const data={
+    upiId:document.getElementById('set-upi').value.trim(),
+    whatsapp:document.getElementById('set-wa').value.trim(),
+    adminWhatsapp:document.getElementById('set-admin-wa').value.trim(),
+    instagram:document.getElementById('set-ig').value.trim(),
+    discord:document.getElementById('set-dc').value.trim(),
+    maintenanceMode: document.getElementById('set-maint-toggle') ? document.getElementById('set-maint-toggle').checked : false,
+    maintenanceReason: document.getElementById('set-maint-reason') ? document.getElementById('set-maint-reason').value.trim() : ''
+  };
   try{await setDoc(doc(db,'settings','global'),data);showToast('SETTINGS SAVED');}
   catch(e){showToast('ERROR SAVING');}
 };
