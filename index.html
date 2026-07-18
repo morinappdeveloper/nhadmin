@@ -134,6 +134,17 @@ input:checked + .slider:before{transform:translateX(24px);}
 .modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:14px auto 16px;}
 .modal-title{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:800;letter-spacing:1px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
 .modal-close{background:none;border:none;color:var(--text2);font-size:20px;}
+/* ── WATER WAVE IMAGE LOADER ── */
+.wave-wrap{position:relative;overflow:hidden;flex-shrink:0;}
+.wave-loader{position:absolute;inset:0;overflow:hidden;background:#15161a;z-index:2;transition:opacity 0.35s ease;}
+.wave-loader.hide{opacity:0;pointer-events:none;}
+.wave-loader .wave-fill{position:absolute;left:-30%;width:160%;aspect-ratio:1/1;top:100%;border-radius:44%;background:rgba(255,198,26,0.30);animation:waveSpin 4.2s linear infinite;}
+.wave-loader .wave-fill.wave2{background:rgba(255,198,26,0.16);animation-duration:6.2s;animation-direction:reverse;}
+.wave-loader .wave-pct{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;color:#ffc61a;letter-spacing:0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.6);}
+@keyframes waveSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+img.wave-target{opacity:0;transition:opacity 0.4s ease;}
+img.wave-target.loaded{opacity:1;}
+
 </style>
 </head>
 <body>
@@ -222,6 +233,17 @@ input:checked + .slider:before{transform:translateX(24px);}
           </div>
           <div class="fgroup"><label class="flabel">TOTAL SLOTS</label><input type="number" class="finput" id="m-slots" placeholder="12"/></div>
           <div class="fgroup"><label class="flabel">ENTRY FEE (₹)</label><input type="number" class="finput" id="m-entry" placeholder="200"/></div>
+          <div class="fgroup ffull" style="background:var(--gray);padding:12px;border-radius:8px;">
+            <label class="flabel" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0;">
+              <input type="checkbox" id="m-schedule-enabled" onchange="toggleScheduleFields()" style="width:16px;height:16px;flex-shrink:0;"/>
+              ENABLE SCHEDULED SLOT OPENING (COUNTDOWN)
+            </label>
+            <div id="schedule-fields" style="display:none;margin-top:10px;">
+              <label class="flabel">SLOTS OPEN AT (DATE &amp; TIME)</label>
+              <input type="datetime-local" class="finput" id="m-open-at"/>
+              <div style="font-size:9px;color:var(--text2);margin-top:6px;line-height:1.5;">Users will see a live countdown and CANNOT register until this exact date &amp; time. It unlocks automatically — no need to touch STATUS manually.</div>
+            </div>
+          </div>
           <div class="fgroup ffull"><label class="flabel">PRIZE POOL</label><input type="text" class="finput" id="m-prize" placeholder="1000₹/500₹/300₹"/></div>
           <div class="fgroup ffull"><label class="flabel">BOUNTY (₹)</label><input type="number" class="finput" id="m-bounty" placeholder="0"/></div>
           <div class="fgroup ffull"><label class="flabel">STATUS</label>
@@ -375,6 +397,62 @@ const EMAILJS_SERVICE_ID  = 'service_73ushuq';
 const EMAILJS_TEMPLATE_ID = 'template_789jos9';
 if(window.emailjs){ window.emailjs.init({publicKey: EMAILJS_PUBLIC_KEY}); }
 
+// ── WATER WAVE IMAGE LOADER ──
+// Streams image bytes (where the host allows it) so we can show a rising
+// "water wave" placeholder tied to real download progress, and only
+// reveal the <img> once it has loaded 100% — never a half-loaded image.
+function loadImageWithWave(imgEl, loaderEl, url){
+  if(!url){ if(loaderEl) loaderEl.classList.add('hide'); return; }
+  imgEl.classList.remove('loaded');
+  if(loaderEl) loaderEl.classList.remove('hide');
+  const fills = loaderEl ? loaderEl.querySelectorAll('.wave-fill') : [];
+  const pctEl = loaderEl ? loaderEl.querySelector('.wave-pct') : null;
+
+  const setLevel=(pct)=>{
+    fills.forEach(f=>{ f.style.top=(100-pct)+'%'; });
+    if(pctEl) pctEl.textContent=pct+'%';
+  };
+  setLevel(0);
+
+  const finish=(src)=>{
+    imgEl.onload=()=>{
+      imgEl.classList.add('loaded');
+      if(loaderEl){ loaderEl.classList.add('hide'); setTimeout(()=>{ if(loaderEl.parentNode) loaderEl.remove(); },450); }
+    };
+    imgEl.onerror=()=>{
+      if(loaderEl){ loaderEl.classList.add('hide'); setTimeout(()=>{ if(loaderEl.parentNode) loaderEl.remove(); },450); }
+    };
+    imgEl.src=src;
+  };
+
+  if(window.fetch){
+    fetch(url).then(res=>{
+      const total=parseInt(res.headers.get('content-length')||'0',10);
+      if(!res.body||!total) return res.blob().then(b=>finish(URL.createObjectURL(b)));
+      let loaded=0; const reader=res.body.getReader(); const chunks=[];
+      const pump=()=>reader.read().then(({done,value})=>{
+        if(done){ finish(URL.createObjectURL(new Blob(chunks))); return; }
+        chunks.push(value); loaded+=value.length;
+        setLevel(Math.min(100,Math.round(loaded/total*100)));
+        return pump();
+      });
+      return pump();
+    }).catch(()=>finish(url));
+  } else {
+    finish(url);
+  }
+}
+
+function initWaveImages(container){
+  container.querySelectorAll('img.wave-target[data-src]').forEach(img=>{
+    const url=img.getAttribute('data-src');
+    img.removeAttribute('data-src');
+    const loader = img.previousElementSibling && img.previousElementSibling.classList.contains('wave-loader')
+      ? img.previousElementSibling : null;
+    loadImageWithWave(img, loader, url);
+  });
+}
+
 let allMatches=[];
 let allRegs=[];
 let currentRegDocId=null;
@@ -469,7 +547,7 @@ function renderMatchesList(){
   if(!allMatches.length){c.innerHTML='<div style="text-align:center;padding:20px;font-family:Orbitron,sans-serif;font-size:10px;color:var(--text2);">NO MATCHES YET</div>';return;}
   c.innerHTML=allMatches.map(m=>`
   <div class="match-item">
-    ${m.image?`<img class="match-thumb" src="${m.image}" alt=""/>`:`<div class="match-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;">🎮</div>`}
+    ${m.image?`<div class="wave-wrap match-thumb" style="padding:0;"><div class="wave-loader"><div class="wave-fill"></div><div class="wave-fill wave2"></div></div><img class="match-thumb wave-target" style="width:100%;height:100%;position:relative;" data-src="${m.image}" alt=""/></div>`:`<div class="match-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;">🎮</div>`}
     <div class="match-info">
       <div class="match-name">${m.name||'UNNAMED'}</div>
       <div class="match-meta">${m.time||'TBA'} · ${m.filledSlots||0}/${m.slots||0} SLOTS · ${m.entry||0}₹</div>
@@ -480,6 +558,7 @@ function renderMatchesList(){
       <button class="btn-red" onclick="deleteMatch('${m.id}')">DEL</button>
     </div>
   </div>`).join('');
+  initWaveImages(c);
 }
 
 window.saveMatch=async()=>{
@@ -494,6 +573,15 @@ window.saveMatch=async()=>{
     modeValue = document.getElementById('m-mode-custom').value.trim() || 'Custom';
   }
 
+  const scheduleEnabled = document.getElementById('m-schedule-enabled').checked;
+  const openAtRaw = document.getElementById('m-open-at').value;
+  if(scheduleEnabled && !openAtRaw){
+    showToast('SET AN OPEN DATE & TIME OR DISABLE THE COUNTDOWN');
+    btn.textContent=editId?'UPDATE MATCH':'PUBLISH MATCH';btn.disabled=false;
+    return;
+  }
+  const openAtISO = scheduleEnabled ? new Date(openAtRaw).toISOString() : null;
+
   const data={
     name,time:document.getElementById('m-time').value.trim(),
     mode: modeValue,
@@ -505,6 +593,8 @@ window.saveMatch=async()=>{
     status:document.getElementById('m-status').value,
     winner:document.getElementById('m-winner').value.trim()||null,
     winnerSub:document.getElementById('m-winner-sub').value.trim()||null,
+    slotOpenEnabled: scheduleEnabled,
+    slotOpenAt: openAtISO,
   };
   try{
     if(editId){await updateDoc(doc(db,'matches',editId),data);showToast('MATCH UPDATED');}
@@ -542,6 +632,9 @@ window.editMatch=(id)=>{
   document.getElementById('m-winner-sub').value=m.winnerSub||'';
   document.getElementById('match-img-url').value=m.image||'';
   if(m.image){const p=document.getElementById('match-dz-prev');p.src=m.image;p.style.display='block';}
+  document.getElementById('m-schedule-enabled').checked = !!m.slotOpenEnabled;
+  document.getElementById('m-open-at').value = m.slotOpenAt ? isoToLocalInput(m.slotOpenAt) : '';
+  toggleScheduleFields();
   document.getElementById('save-match-btn').textContent='UPDATE MATCH';
   document.getElementById('cancel-edit-btn').style.display='block';
   switchTab('add-match',document.querySelectorAll('.tab')[1]);
@@ -559,10 +652,27 @@ function clearMatchForm(){
   document.getElementById('m-mode-custom').style.display = 'none';
   document.getElementById('m-mode-custom').value = '';
   document.getElementById('m-status').value='open';
+  document.getElementById('m-schedule-enabled').checked=false;
+  document.getElementById('m-open-at').value='';
+  document.getElementById('schedule-fields').style.display='none';
   const p=document.getElementById('match-dz-prev');p.src='';p.style.display='none';
   document.getElementById('save-match-btn').textContent='PUBLISH MATCH';
   document.getElementById('cancel-edit-btn').style.display='none';
   document.getElementById('match-up-prog').classList.remove('show');
+}
+
+window.toggleScheduleFields=function(){
+  const enabled=document.getElementById('m-schedule-enabled').checked;
+  document.getElementById('schedule-fields').style.display = enabled ? 'block' : 'none';
+};
+
+// Convert an ISO datetime string to the local "YYYY-MM-DDTHH:MM" format
+// expected by <input type="datetime-local">.
+function isoToLocalInput(iso){
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // Handle mode dropdown change
@@ -660,7 +770,8 @@ window.openRegModal=(id)=>{
   </div>
   <div style="font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--text2);margin-bottom:8px;">SQUAD ROSTER</div>
   ${(r.players||[]).map(p=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray);"><div style="width:20px;height:20px;background:var(--blue);border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;flex-shrink:0;">${p.slot}</div><div><div style="font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;">${p.ign||'—'} ${p.role?`[${p.role}]`:''}</div><div style="font-family:'Orbitron',sans-serif;font-size:9px;color:var(--text2);">UID: ${p.uid||'—'}</div></div></div>`).join('')}
-  ${r.screenshotUrl?`<div style="margin-top:14px;"><div style="font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--text2);margin-bottom:8px;">PAYMENT SCREENSHOT</div><img src="${r.screenshotUrl}" style="width:100%;border-radius:10px;border:1.5px solid var(--border);" onclick="window.open('${r.screenshotUrl}','_blank')"/></div>`:''}`;
+  ${r.screenshotUrl?`<div style="margin-top:14px;"><div style="font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--text2);margin-bottom:8px;">PAYMENT SCREENSHOT</div><div class="wave-wrap" style="width:100%;min-height:180px;border-radius:10px;border:1.5px solid var(--border);"><div class="wave-loader"><div class="wave-fill"></div><div class="wave-fill wave2"></div><div class="wave-pct">0%</div></div><img class="wave-target" style="width:100%;border-radius:10px;display:block;" data-src="${r.screenshotUrl}" onclick="window.open('${r.screenshotUrl}','_blank')"/></div></div>`:''}`;
+  initWaveImages(b);
   document.getElementById('reg-modal').classList.add('open');
 };
 
@@ -880,4 +991,5 @@ document.getElementById('l-pass').addEventListener('keydown',e=>{if(e.key==='Ent
 </script>
 </body>
 </html>
+
 
