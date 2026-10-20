@@ -274,6 +274,8 @@ img.wave-target.loaded{opacity:1;}
     <button class="tab" onclick="switchTab('announcements',this)">ANNOUNCEMENTS</button>
     <button class="tab" onclick="switchTab('hero',this)">HERO BANNER</button>
     <button class="tab" onclick="switchTab('storage',this)">STORAGE</button>
+    <button class="tab" onclick="switchTab('fs-settings',this)">FREE SLOT SETUP</button>
+    <button class="tab" onclick="switchTab('fs-teams',this)">FREE SLOT TEAMS</button>
     <button class="tab" onclick="switchTab('settings',this)">SETTINGS</button>
   </div>
 
@@ -725,6 +727,100 @@ img.wave-target.loaded{opacity:1;}
     </div>
   </div>
 
+  <!-- ══════════════ FREE SLOT SETUP ══════════════ -->
+  <div class="section" id="tab-fs-settings">
+    <div class="card">
+      <div class="card-header"><h2>FREE SLOT SETTINGS &amp; TIMING</h2></div>
+      <div class="card-body">
+        <div class="form-hint">Public page: <b>free-slot.html</b>. Players must Google-login, answer MCQ, enter unique Guild Name + Phone. Status starts as <b>verifying</b>.</div>
+
+        <div class="fgrid">
+          <div class="fgroup">
+            <label class="flabel">ENABLE REGISTRATION</label>
+            <label class="switch"><input type="checkbox" id="fs-enabled"/><span class="slider"></span></label>
+          </div>
+          <div class="fgroup">
+            <label class="flabel">MAX TEAMS (cap)</label>
+            <input type="number" class="finput" id="fs-max" value="100" min="1" max="500"/>
+          </div>
+        </div>
+        <div class="fgrid">
+          <div class="fgroup">
+            <label class="flabel">SELECT LIMIT (auto-delete rest)</label>
+            <input type="number" class="finput" id="fs-select-limit" value="30" min="1" max="100"/>
+          </div>
+          <div class="fgroup">
+            <label class="flabel">MIN CORRECT ANSWERS</label>
+            <input type="number" class="finput" id="fs-min-correct" value="0" min="0"/>
+          </div>
+        </div>
+
+        <div class="fgroup">
+          <label class="flabel">SCHEDULE OPEN AT (optional)</label>
+          <input type="datetime-local" class="finput" id="fs-open-at"/>
+          <div class="field-note">Leave empty = open immediately when enabled. Timer shows on public page until this time.</div>
+        </div>
+
+        <div class="fgroup"><label class="flabel">BADGE TEXT</label><input type="text" class="finput" id="fs-badge" placeholder="FREE SLOT"/></div>
+        <div class="fgroup"><label class="flabel">TITLE (use | for gold highlight)</label><input type="text" class="finput" id="fs-title" placeholder="FREE SLOT|REGISTRATION"/></div>
+        <div class="fgroup"><label class="flabel">SUBTITLE</label><input type="text" class="finput" id="fs-subtitle" placeholder="Answer MAC rules quiz and submit guild details"/></div>
+        <div class="fgroup"><label class="flabel">CLOSED MESSAGE</label><input type="text" class="finput" id="fs-closed-msg" placeholder="Registration is currently closed."/></div>
+
+        <div class="fgroup" style="margin-top:18px;border-top:1.5px solid var(--border);padding-top:16px;">
+          <div class="field-row-top" style="margin-bottom:10px;">
+            <label class="flabel" style="margin:0;">MCQ QUESTIONS</label>
+            <button type="button" class="btn-ghost" onclick="fsAddQuestion()">+ ADD QUESTION</button>
+          </div>
+          <div class="field-note" style="margin-bottom:10px;">Each question needs text, options (A B C D…), and mark the correct option index (0 = A).</div>
+          <div id="fs-questions-list"></div>
+        </div>
+
+        <button class="btn-blue" style="margin-top:18px;" onclick="saveFreeSlotSettings()">SAVE FREE SLOT SETTINGS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ FREE SLOT TEAMS ══════════════ -->
+  <div class="section" id="tab-fs-teams">
+    <div class="stats-row">
+      <div class="stat-mini"><div class="stat-mini-val" id="fs-stat-total">0</div><div class="stat-mini-label">TOTAL</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="fs-stat-verifying">0</div><div class="stat-mini-label">VERIFYING</div></div>
+      <div class="stat-mini"><div class="stat-mini-val" id="fs-stat-selected">0</div><div class="stat-mini-label">SELECTED</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2>FREE SLOT REGISTRATIONS</h2>
+        <button class="btn-ghost" onclick="loadFreeSlotTeams()">REFRESH</button>
+      </div>
+      <div class="card-body">
+        <div class="form-hint">Tap a team to view details. Use <b>SELECT</b> to pick teams. When selected count reaches the Select Limit (default 30), remaining verifying teams are auto-deleted.</div>
+        <div class="fgroup">
+          <select class="finput" id="fs-status-filter" onchange="renderFreeSlotTeams()">
+            <option value="all">ALL</option>
+            <option value="verifying">VERIFYING</option>
+            <option value="selected">SELECTED</option>
+            <option value="rejected">REJECTED</option>
+          </select>
+        </div>
+        <div id="fs-teams-list"><div style="text-align:center;padding:20px;font-family:'Orbitron',sans-serif;font-size:10px;color:var(--text2);">LOADING…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FS DETAIL MODAL -->
+  <div class="modal-bg" id="fs-modal">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-title">TEAM DETAILS <button class="modal-close" onclick="closeFsModal()">×</button></div>
+      <div id="fs-modal-body"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+        <button class="btn-gold" id="fs-btn-select" onclick="fsSelectTeam()">SELECT TEAM</button>
+        <button class="btn-red" id="fs-btn-reject" onclick="fsRejectTeam()">REJECT</button>
+        <button class="btn-red" onclick="fsDeleteTeam()">DELETE</button>
+      </div>
+    </div>
+  </div>
+
   <div class="section" id="tab-settings">
     <div class="card">
       <div class="card-header"><h2>SITE BACKGROUNDS</h2></div>
@@ -739,6 +835,18 @@ img.wave-target.loaded{opacity:1;}
           </div>
           <div class="upload-prog" id="pagebg-up-prog"><div class="spin"></div><span id="pagebg-up-txt">UPLOADING...</span></div>
           <input type="hidden" id="pagebg-img-url"/>
+        </div>
+        <div class="fgroup">
+          <label class="flabel">SITE FAVICON (browser tab icon)</label>
+          <div class="dz" id="favicon-dz" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="handleImgDrop(event,'favicon-img-url','favicon-dz-prev','favicon-up-prog')" onclick="document.getElementById('favicon-img-inp').click()">
+            <input type="file" id="favicon-img-inp" accept="image/png,image/x-icon,image/ico,image/svg+xml,image/webp,image/jpeg,.ico" onchange="uploadImg(this.files[0],'favicon-img-url','favicon-dz-prev','favicon-up-prog')"/>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1a6fff" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/><path d="M12 8v8M8 12h8"/></svg>
+            <div class="dz-txt">TAP TO UPLOAD FAVICON</div>
+            <img class="dz-preview" id="favicon-dz-prev" src="" alt="" style="max-width:64px;max-height:64px;"/>
+          </div>
+          <div class="upload-prog" id="favicon-up-prog"><div class="spin"></div><span id="favicon-up-txt">UPLOADING...</span></div>
+          <input type="hidden" id="favicon-img-url"/>
+          <div class="field-note">Square PNG / ICO / WebP recommended (32×32 or 64×64). Applies to all public pages after SAVE SETTINGS.</div>
         </div>
       </div>
     </div>
@@ -1246,6 +1354,8 @@ window.switchTab = (tab, el) => {
   if(tab === 'announcements') loadAnnouncements();
   if(tab === 'storage') loadStorageStats();
   if(tab === 'slots') loadSlotManager();
+  if(tab === 'fs-settings') loadFreeSlotSettings();
+  if(tab === 'fs-teams') loadFreeSlotTeams();
 };
 
 window.uploadImg = async (file, urlId, prevId, progId) => {
@@ -2221,6 +2331,8 @@ window.loadSettings = async () => {
       document.getElementById('set-maint-reason').value = d.maintenanceReason || '';
       document.getElementById('pagebg-img-url').value = d.pageBackground || '';
       if(d.pageBackground){ const p = document.getElementById('pagebg-dz-prev'); p.src = d.pageBackground; p.style.display = 'block'; }
+      document.getElementById('favicon-img-url').value = d.favicon || '';
+      if(d.favicon){ const fp = document.getElementById('favicon-dz-prev'); fp.src = d.favicon; fp.style.display = 'block'; }
       sidebarLinks = Array.isArray(d.sidebarLinks) ? d.sidebarLinks.map(l => ({ name: l.name||'', url: l.url||'' })).slice(0,7) : [];
       renderSidebarLinksEditor();
 
@@ -2283,6 +2395,7 @@ window.saveSettings = async () => {
     maintenanceMode: document.getElementById('set-maint-toggle').checked,
     maintenanceReason: document.getElementById('set-maint-reason').value.trim(),
     pageBackground: document.getElementById('pagebg-img-url').value.trim(),
+    favicon: document.getElementById('favicon-img-url').value.trim(),
     sidebarLinks: cleanLinks,
     stats,
     tickerEnabled: document.getElementById('ticker-enabled').checked,
@@ -2822,7 +2935,7 @@ window.loadStorageStats = async () => {
         count++;
         const data = d.data();
         bytes += estimateDocSize({ id: d.id, ...data }) + 32;
-        ['image','bgImage','pageBackground','screenshotUrl'].forEach(k => {
+        ['image','bgImage','pageBackground','screenshotUrl','favicon'].forEach(k => {
           if(data[k] && typeof data[k] === 'string' && data[k].startsWith('http')) imageUrls.add(data[k]);
         });
         if(Array.isArray(data.blocks)){
@@ -2880,6 +2993,280 @@ window.loadStorageStats = async () => {
     `<tr><td>FIRESTORE TOTAL (counts to 1 GiB)</td><td>${totalDocs}</td><td>${formatBytes(totalBytes)}</td><td>${usedPctRounded}%</td></tr>`;
   }
 };
+
+/* ═══════════════════════════════════════════════
+   FREE SLOT — settings + teams
+   Collection: freeSlotRegs
+   Settings doc: settings/freeSlot
+   ═══════════════════════════════════════════════ */
+let fsQuestions = []; // {id, text, options:[], correctIndex}
+let fsTeams = [];
+let currentFsId = null;
+
+function fsEsc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+window.fsAddQuestion = () => {
+  fsQuestions.push({
+    id: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    text: '',
+    options: ['', '', '', ''],
+    correctIndex: 0
+  });
+  renderFsQuestions();
+};
+
+window.fsRemoveQuestion = (i) => {
+  fsQuestions.splice(i, 1);
+  renderFsQuestions();
+};
+
+window.fsUpdateQ = (i, key, val) => {
+  if(!fsQuestions[i]) return;
+  if(key === 'correctIndex') fsQuestions[i].correctIndex = parseInt(val, 10) || 0;
+  else if(key.startsWith('opt')){
+    const oi = parseInt(key.replace('opt',''), 10);
+    fsQuestions[i].options[oi] = val;
+  } else fsQuestions[i][key] = val;
+};
+
+function renderFsQuestions(){
+  const box = document.getElementById('fs-questions-list');
+  if(!box) return;
+  if(!fsQuestions.length){
+    box.innerHTML = '<div style="text-align:center;padding:16px;font-family:Orbitron,sans-serif;font-size:9px;color:var(--text2);letter-spacing:1px;border:1.5px dashed var(--border);border-radius:8px;">NO QUESTIONS — ADD AT LEAST ONE</div>';
+    return;
+  }
+  box.innerHTML = fsQuestions.map((q, i) => `
+    <div style="background:var(--gray);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:800;color:var(--blue);">Q${i+1}</span>
+        <button type="button" class="btn-red" onclick="fsRemoveQuestion(${i})">DEL</button>
+      </div>
+      <input type="text" class="finput" value="${fsEsc(q.text)}" placeholder="Question text" oninput="fsUpdateQ(${i},'text',this.value)" style="margin-bottom:8px;"/>
+      ${(q.options||[]).map((o, oi) => `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <label style="font-family:Orbitron,sans-serif;font-size:9px;font-weight:800;color:var(--text2);min-width:18px;">${String.fromCharCode(65+oi)}</label>
+          <input type="text" class="finput" value="${fsEsc(o)}" placeholder="Option ${String.fromCharCode(65+oi)}" oninput="fsUpdateQ(${i},'opt${oi}',this.value)" style="margin:0;flex:1;"/>
+          <label style="font-family:Orbitron,sans-serif;font-size:8px;font-weight:700;color:var(--text2);display:flex;align-items:center;gap:4px;white-space:nowrap;">
+            <input type="radio" name="fs-correct-${i}" ${q.correctIndex===oi?'checked':''} onchange="fsUpdateQ(${i},'correctIndex',${oi})"/> CORRECT
+          </label>
+        </div>
+      `).join('')}
+      <button type="button" class="btn-ghost" style="margin-top:6px;" onclick="fsQuestions[${i}].options.push('');renderFsQuestions();">+ OPTION</button>
+    </div>
+  `).join('');
+}
+
+window.loadFreeSlotSettings = async () => {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'freeSlot'));
+    const d = snap.exists() ? snap.data() : {};
+    document.getElementById('fs-enabled').checked = !!d.enabled;
+    document.getElementById('fs-max').value = d.maxTeams ?? 100;
+    document.getElementById('fs-select-limit').value = d.selectLimit ?? 30;
+    document.getElementById('fs-min-correct').value = d.minCorrect ?? 0;
+    document.getElementById('fs-badge').value = d.badge || 'FREE SLOT';
+    document.getElementById('fs-title').value = d.title || 'FREE SLOT|REGISTRATION';
+    document.getElementById('fs-subtitle').value = d.subtitle || '';
+    document.getElementById('fs-closed-msg').value = d.closedMessage || '';
+    if(d.openAt){
+      try {
+        const dt = new Date(d.openAt);
+        if(!isNaN(dt)) document.getElementById('fs-open-at').value = dt.toISOString().slice(0,16);
+      } catch(_){}
+    } else document.getElementById('fs-open-at').value = '';
+    fsQuestions = Array.isArray(d.questions) ? d.questions.map(q => ({
+      id: q.id || ('q_'+Math.random().toString(36).slice(2,8)),
+      text: q.text || '',
+      options: Array.isArray(q.options) ? q.options.slice() : ['','','',''],
+      correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0
+    })) : [];
+    renderFsQuestions();
+  } catch(e){ console.warn(e); showToast('ERROR LOADING FS SETTINGS'); }
+};
+
+window.saveFreeSlotSettings = async () => {
+  const openVal = document.getElementById('fs-open-at').value;
+  let openAt = null;
+  if(openVal){
+    const t = Date.parse(openVal);
+    if(Number.isFinite(t)) openAt = new Date(t).toISOString();
+  }
+  const cleanQ = fsQuestions
+    .map(q => ({
+      id: q.id,
+      text: (q.text||'').trim(),
+      options: (q.options||[]).map(o => String(o||'').trim()).filter(Boolean),
+      correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0
+    }))
+    .filter(q => q.text && q.options.length >= 2);
+
+  const data = {
+    enabled: document.getElementById('fs-enabled').checked,
+    maxTeams: parseInt(document.getElementById('fs-max').value, 10) || 100,
+    selectLimit: parseInt(document.getElementById('fs-select-limit').value, 10) || 30,
+    minCorrect: parseInt(document.getElementById('fs-min-correct').value, 10) || 0,
+    badge: document.getElementById('fs-badge').value.trim() || 'FREE SLOT',
+    title: document.getElementById('fs-title').value.trim() || 'FREE SLOT|REGISTRATION',
+    subtitle: document.getElementById('fs-subtitle').value.trim(),
+    closedMessage: document.getElementById('fs-closed-msg').value.trim(),
+    openAt,
+    questions: cleanQ,
+    updatedAt: serverTimestamp()
+  };
+  try {
+    await setDoc(doc(db, 'settings', 'freeSlot'), data, { merge: true });
+    showToast('FREE SLOT SETTINGS SAVED');
+  } catch(e){ console.error(e); showToast('ERROR SAVING'); }
+};
+
+window.loadFreeSlotTeams = async () => {
+  const list = document.getElementById('fs-teams-list');
+  if(list) list.innerHTML = '<div style="text-align:center;padding:20px;font-family:Orbitron,sans-serif;font-size:10px;color:var(--text2);">LOADING…</div>';
+  try {
+    let snap;
+    try {
+      snap = await getDocs(query(collection(db, 'freeSlotRegs'), orderBy('createdAt', 'desc')));
+    } catch(_) {
+      snap = await getDocs(collection(db, 'freeSlotRegs'));
+    }
+    fsTeams = [];
+    snap.forEach(d => fsTeams.push({ id: d.id, ...d.data() }));
+    fsTeams.sort((a,b) => {
+      const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return (tb||0)-(ta||0);
+    });
+    const total = fsTeams.length;
+    const verifying = fsTeams.filter(t => (t.status||'') === 'verifying').length;
+    const selected = fsTeams.filter(t => (t.status||'') === 'selected').length;
+    document.getElementById('fs-stat-total').textContent = total;
+    document.getElementById('fs-stat-verifying').textContent = verifying;
+    document.getElementById('fs-stat-selected').textContent = selected;
+    renderFreeSlotTeams();
+  } catch(e){
+    console.error(e);
+    if(list) list.innerHTML = '<div style="color:#cc0000;padding:20px;text-align:center;font-family:Orbitron,sans-serif;font-size:10px;">ERROR — check Firestore rules for freeSlotRegs</div>';
+  }
+};
+
+window.renderFreeSlotTeams = () => {
+  const list = document.getElementById('fs-teams-list');
+  if(!list) return;
+  const filter = document.getElementById('fs-status-filter')?.value || 'all';
+  let rows = fsTeams;
+  if(filter !== 'all') rows = fsTeams.filter(t => (t.status||'verifying') === filter);
+  if(!rows.length){
+    list.innerHTML = '<div style="text-align:center;padding:24px;font-family:Orbitron,sans-serif;font-size:10px;color:var(--text2);">NO TEAMS</div>';
+    return;
+  }
+  list.innerHTML = rows.map(t => {
+    const st = (t.status||'verifying').toLowerCase();
+    const badgeCls = st === 'selected' ? 'badge-green' : (st === 'rejected' ? 'badge-red' : 'badge-orange');
+    return `<div class="reg-row" onclick="openFsModal('${t.id}')" style="cursor:pointer;">
+      <div class="reg-top">
+        <div>
+          <div class="reg-team">${fsEsc(t.guildName||'—')}</div>
+          <div class="reg-id">${fsEsc(t.phone||'')} · ${fsEsc(t.email||'')}</div>
+        </div>
+        <span class="badge ${badgeCls}">${st.toUpperCase()}</span>
+      </div>
+      <div style="font-family:Orbitron,sans-serif;font-size:9px;color:var(--text2);letter-spacing:1px;">${fsEsc(t.name||'')}</div>
+    </div>`;
+  }).join('');
+};
+
+window.openFsModal = (id) => {
+  const t = fsTeams.find(x => x.id === id);
+  if(!t) return;
+  currentFsId = id;
+  const st = (t.status||'verifying').toLowerCase();
+  const body = document.getElementById('fs-modal-body');
+  body.innerHTML = `
+    <div style="margin-bottom:12px;">
+      <div style="font-family:Orbitron,sans-serif;font-size:14px;font-weight:800;">${fsEsc(t.guildName||'—')}</div>
+      <div style="font-family:Orbitron,sans-serif;font-size:9px;color:var(--text2);margin-top:4px;">${fsEsc(t.name||'')} · ${fsEsc(t.email||'')}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div style="background:var(--gray);border-radius:8px;padding:10px;"><div style="font-size:8px;color:var(--text2);letter-spacing:1px;margin-bottom:3px;font-family:Orbitron,sans-serif;">PHONE</div><div style="font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;">${fsEsc(t.phone||'—')}</div></div>
+      <div style="background:var(--gray);border-radius:8px;padding:10px;"><div style="font-size:8px;color:var(--text2);letter-spacing:1px;margin-bottom:3px;font-family:Orbitron,sans-serif;">STATUS</div><div style="font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;">${st.toUpperCase()}</div></div>
+      <div style="background:var(--gray);border-radius:8px;padding:10px;"><div style="font-size:8px;color:var(--text2);letter-spacing:1px;margin-bottom:3px;font-family:Orbitron,sans-serif;">GUILD</div><div style="font-family:Orbitron,sans-serif;font-size:12px;font-weight:700;">${fsEsc(t.guildName||'—')}</div></div>
+      <div style="background:var(--gray);border-radius:8px;padding:10px;"><div style="font-size:8px;color:var(--text2);letter-spacing:1px;margin-bottom:3px;font-family:Orbitron,sans-serif;">USER ID</div><div style="font-family:Orbitron,sans-serif;font-size:10px;font-weight:700;word-break:break-all;">${fsEsc(t.userId||'—')}</div></div>
+    </div>`;
+  document.getElementById('fs-btn-select').style.display = st === 'verifying' ? 'inline-block' : 'none';
+  document.getElementById('fs-btn-reject').style.display = st === 'verifying' ? 'inline-block' : 'none';
+  document.getElementById('fs-modal').classList.add('open');
+};
+
+window.closeFsModal = () => {
+  document.getElementById('fs-modal').classList.remove('open');
+  currentFsId = null;
+};
+
+async function getFsSelectLimit(){
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'freeSlot'));
+    if(snap.exists()) return parseInt(snap.data().selectLimit, 10) || 30;
+  } catch(_){}
+  return 30;
+}
+
+window.fsSelectTeam = async () => {
+  if(!currentFsId) return;
+  try {
+    const limit = await getFsSelectLimit();
+    const selectedCount = fsTeams.filter(t => t.status === 'selected').length;
+    if(selectedCount >= limit){
+      showToast('SELECT LIMIT REACHED ('+limit+')');
+      return;
+    }
+    await updateDoc(doc(db, 'freeSlotRegs', currentFsId), {
+      status: 'selected',
+      selectedAt: serverTimestamp()
+    });
+    showToast('TEAM SELECTED');
+    // if now at limit → auto-delete remaining verifying
+    const after = selectedCount + 1;
+    if(after >= limit){
+      await fsAutoDeleteRemaining();
+    }
+    closeFsModal();
+    await loadFreeSlotTeams();
+  } catch(e){ console.error(e); showToast('ERROR SELECTING'); }
+};
+
+window.fsRejectTeam = async () => {
+  if(!currentFsId) return;
+  try {
+    await updateDoc(doc(db, 'freeSlotRegs', currentFsId), { status: 'rejected' });
+    showToast('REJECTED');
+    closeFsModal();
+    await loadFreeSlotTeams();
+  } catch(e){ showToast('ERROR'); }
+};
+
+window.fsDeleteTeam = async () => {
+  if(!currentFsId) return;
+  if(!confirm('Delete this free-slot registration permanently?')) return;
+  try {
+    await deleteDoc(doc(db, 'freeSlotRegs', currentFsId));
+    showToast('DELETED');
+    closeFsModal();
+    await loadFreeSlotTeams();
+  } catch(e){ showToast('ERROR DELETING'); }
+};
+
+async function fsAutoDeleteRemaining(){
+  try {
+    const verifying = fsTeams.filter(t => (t.status||'') === 'verifying');
+    if(!verifying.length) return;
+    if(!confirm(`Select limit reached. Delete ${verifying.length} remaining verifying teams?`)) return;
+    for(const t of verifying){
+      try { await deleteDoc(doc(db, 'freeSlotRegs', t.id)); } catch(_){}
+    }
+    showToast('REMAINING TEAMS DELETED');
+  } catch(e){ console.error(e); }
+}
 </script>
 </body>
 </html>
