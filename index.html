@@ -793,14 +793,23 @@ img.wave-target.loaded{opacity:1;}
         <button class="btn-ghost" onclick="loadFreeSlotTeams()">REFRESH</button>
       </div>
       <div class="card-body">
-        <div class="form-hint">Tap a team to view details. Use <b>SELECT</b> to pick teams. When selected count reaches the Select Limit (default 30), remaining verifying teams are auto-deleted.</div>
+        <div class="form-hint">Tap a team to view details. Use <b>SELECT</b> to pick teams — WhatsApp opens with a pre-filled selection message. Selected teams can be moved back to <b>PENDING</b>. When selected count reaches the Select Limit, remaining verifying teams are auto-deleted.</div>
         <div class="fgroup">
+          <label class="flabel">SEARCH REGISTRATIONS</label>
+          <input type="search" class="finput" id="fs-search" placeholder="Search guild, phone, email, name…" oninput="renderFreeSlotTeams()" autocomplete="off"/>
+        </div>
+        <div class="fgroup">
+          <label class="flabel">STATUS FILTER</label>
           <select class="finput" id="fs-status-filter" onchange="renderFreeSlotTeams()">
             <option value="all">ALL</option>
             <option value="verifying">VERIFYING</option>
             <option value="selected">SELECTED</option>
             <option value="rejected">REJECTED</option>
           </select>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+          <button type="button" class="btn-ghost" id="fs-btn-copy-all" onclick="fsCopyAllTeamNames()">COPY ALL TEAM NAMES</button>
+          <button type="button" class="btn-gold" id="fs-btn-copy-selected" onclick="fsCopySelectedMessage()" style="display:none;">COPY SELECTED MESSAGE</button>
         </div>
         <div id="fs-teams-list"><div style="text-align:center;padding:20px;font-family:'Orbitron',sans-serif;font-size:10px;color:var(--text2);">LOADING…</div></div>
       </div>
@@ -815,6 +824,7 @@ img.wave-target.loaded{opacity:1;}
       <div id="fs-modal-body"></div>
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
         <button class="btn-gold" id="fs-btn-select" onclick="fsSelectTeam()">SELECT TEAM</button>
+        <button class="btn-green" id="fs-btn-pending" onclick="fsPendingTeam()" style="display:none;">MOVE TO PENDING</button>
         <button class="btn-red" id="fs-btn-reject" onclick="fsRejectTeam()">REJECT</button>
         <button class="btn-red" onclick="fsDeleteTeam()">DELETE</button>
       </div>
@@ -835,18 +845,6 @@ img.wave-target.loaded{opacity:1;}
           </div>
           <div class="upload-prog" id="pagebg-up-prog"><div class="spin"></div><span id="pagebg-up-txt">UPLOADING...</span></div>
           <input type="hidden" id="pagebg-img-url"/>
-        </div>
-        <div class="fgroup">
-          <label class="flabel">SITE FAVICON (browser tab icon)</label>
-          <div class="dz" id="favicon-dz" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="handleImgDrop(event,'favicon-img-url','favicon-dz-prev','favicon-up-prog')" onclick="document.getElementById('favicon-img-inp').click()">
-            <input type="file" id="favicon-img-inp" accept="image/png,image/x-icon,image/ico,image/svg+xml,image/webp,image/jpeg,.ico" onchange="uploadImg(this.files[0],'favicon-img-url','favicon-dz-prev','favicon-up-prog')"/>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1a6fff" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8v8H8z"/><path d="M12 8v8M8 12h8"/></svg>
-            <div class="dz-txt">TAP TO UPLOAD FAVICON</div>
-            <img class="dz-preview" id="favicon-dz-prev" src="" alt="" style="max-width:64px;max-height:64px;"/>
-          </div>
-          <div class="upload-prog" id="favicon-up-prog"><div class="spin"></div><span id="favicon-up-txt">UPLOADING...</span></div>
-          <input type="hidden" id="favicon-img-url"/>
-          <div class="field-note">Square PNG / ICO / WebP recommended (32×32 or 64×64). Applies to all public pages after SAVE SETTINGS.</div>
         </div>
       </div>
     </div>
@@ -2331,8 +2329,6 @@ window.loadSettings = async () => {
       document.getElementById('set-maint-reason').value = d.maintenanceReason || '';
       document.getElementById('pagebg-img-url').value = d.pageBackground || '';
       if(d.pageBackground){ const p = document.getElementById('pagebg-dz-prev'); p.src = d.pageBackground; p.style.display = 'block'; }
-      document.getElementById('favicon-img-url').value = d.favicon || '';
-      if(d.favicon){ const fp = document.getElementById('favicon-dz-prev'); fp.src = d.favicon; fp.style.display = 'block'; }
       sidebarLinks = Array.isArray(d.sidebarLinks) ? d.sidebarLinks.map(l => ({ name: l.name||'', url: l.url||'' })).slice(0,7) : [];
       renderSidebarLinksEditor();
 
@@ -2395,7 +2391,6 @@ window.saveSettings = async () => {
     maintenanceMode: document.getElementById('set-maint-toggle').checked,
     maintenanceReason: document.getElementById('set-maint-reason').value.trim(),
     pageBackground: document.getElementById('pagebg-img-url').value.trim(),
-    favicon: document.getElementById('favicon-img-url').value.trim(),
     sidebarLinks: cleanLinks,
     stats,
     tickerEnabled: document.getElementById('ticker-enabled').checked,
@@ -2935,7 +2930,7 @@ window.loadStorageStats = async () => {
         count++;
         const data = d.data();
         bytes += estimateDocSize({ id: d.id, ...data }) + 32;
-        ['image','bgImage','pageBackground','screenshotUrl','favicon'].forEach(k => {
+        ['image','bgImage','pageBackground','screenshotUrl'].forEach(k => {
           if(data[k] && typeof data[k] === 'string' && data[k].startsWith('http')) imageUrls.add(data[k]);
         });
         if(Array.isArray(data.blocks)){
@@ -3144,20 +3139,106 @@ window.loadFreeSlotTeams = async () => {
     document.getElementById('fs-stat-verifying').textContent = verifying;
     document.getElementById('fs-stat-selected').textContent = selected;
     renderFreeSlotTeams();
+    fsUpdateCopyButtons();
   } catch(e){
     console.error(e);
     if(list) list.innerHTML = '<div style="color:#cc0000;padding:20px;text-align:center;font-family:Orbitron,sans-serif;font-size:10px;">ERROR — check Firestore rules for freeSlotRegs</div>';
   }
 };
 
+async function fsCopyText(text){
+  const str = String(text || '');
+  if(!str){ showToast('NOTHING TO COPY'); return false; }
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(str);
+      return true;
+    }
+  } catch(_){}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = str;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return true;
+  } catch(_){
+    showToast('COPY FAILED');
+    return false;
+  }
+}
+
+window.fsUpdateCopyButtons = async () => {
+  const selected = fsTeams.filter(t => (t.status || '') === 'selected');
+  const limit = await getFsSelectLimit();
+  const btnSel = document.getElementById('fs-btn-copy-selected');
+  if(btnSel){
+    // Show after select limit is reached (default 30)
+    btnSel.style.display = selected.length >= limit ? 'inline-block' : 'none';
+    btnSel.textContent = 'COPY SELECTED MESSAGE (' + selected.length + ')';
+  }
+  const btnAll = document.getElementById('fs-btn-copy-all');
+  if(btnAll){
+    btnAll.textContent = 'COPY ALL TEAM NAMES (' + fsTeams.length + ')';
+  }
+};
+
+/** One-click list of every registered guild name */
+window.fsCopyAllTeamNames = async () => {
+  if(!fsTeams.length){ showToast('NO TEAMS'); return; }
+  const names = fsTeams.map((t, i) => {
+    const g = String(t.guildName || t.name || 'Team').trim() || 'Team';
+    return (i + 1) + '. ' + g;
+  });
+  const text = names.join('\n');
+  if(await fsCopyText(text)) showToast('COPIED ' + names.length + ' TEAM NAMES');
+};
+
+/** Branded message with all selected teams — for announcement / story */
+window.fsCopySelectedMessage = async () => {
+  const selected = fsTeams.filter(t => (t.status || '') === 'selected');
+  if(!selected.length){ showToast('NO SELECTED TEAMS'); return; }
+  const lines = selected.map((t, i) => {
+    const g = String(t.guildName || t.name || 'Team').trim() || 'Team';
+    return (i + 1) + '. ' + g;
+  });
+  const msg = [
+    '⚡ NOT HUMANS ESPORTS ⚡',
+    'FREE SLOT · VOTING ROUND',
+    '',
+    'SELECTED TEAMS (' + selected.length + '):',
+    '',
+    ...lines,
+    '',
+    'Congratulations to all selected squads!',
+    'Stay active in the channel for voting updates.',
+    '',
+    '— NOT HUMANS Esports',
+    'nothumans.space'
+  ].join('\n');
+  if(await fsCopyText(msg)) showToast('SELECTED MESSAGE COPIED');
+};
+
 window.renderFreeSlotTeams = () => {
   const list = document.getElementById('fs-teams-list');
   if(!list) return;
   const filter = document.getElementById('fs-status-filter')?.value || 'all';
+  const q = String(document.getElementById('fs-search')?.value || '').trim().toLowerCase();
   let rows = fsTeams;
-  if(filter !== 'all') rows = fsTeams.filter(t => (t.status||'verifying') === filter);
+  if(filter !== 'all') rows = rows.filter(t => (t.status||'verifying') === filter);
+  if(q){
+    rows = rows.filter(t => {
+      const hay = [
+        t.guildName, t.phone, t.phoneNorm, t.email, t.name, t.userId, t.status
+      ].map(v => String(v || '').toLowerCase()).join(' ');
+      return hay.includes(q);
+    });
+  }
   if(!rows.length){
-    list.innerHTML = '<div style="text-align:center;padding:24px;font-family:Orbitron,sans-serif;font-size:10px;color:var(--text2);">NO TEAMS</div>';
+    list.innerHTML = '<div style="text-align:center;padding:24px;font-family:Orbitron,sans-serif;font-size:10px;color:var(--text2);">' + (q ? 'NO MATCH FOR SEARCH' : 'NO TEAMS') + '</div>';
     return;
   }
   list.innerHTML = rows.map(t => {
@@ -3175,6 +3256,26 @@ window.renderFreeSlotTeams = () => {
     </div>`;
   }).join('');
 };
+
+/** Normalize phone for wa.me (India-friendly) */
+function fsWaPhone(raw){
+  let phone = String(raw || '').replace(/\D/g, '');
+  if(!phone) return '';
+  if(phone.startsWith('0')) phone = phone.slice(1);
+  if(phone.length === 10) phone = '91' + phone;
+  return phone;
+}
+
+function fsOpenSelectWhatsApp(team){
+  if(!team) return;
+  const phone = fsWaPhone(team.phone || team.phoneNorm || '');
+  const guild = String(team.guildName || 'Team').trim() || 'Team';
+  const msg = `YOUR TEAM HAS BEEN SELECTED FOR VOTING ROUND\n\nGuild: ${guild}\n— NOT HUMANS Esports`;
+  const url = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  try { window.open(url, '_blank'); } catch(_){ location.href = url; }
+}
 
 window.openFsModal = (id) => {
   const t = fsTeams.find(x => x.id === id);
@@ -3195,6 +3296,8 @@ window.openFsModal = (id) => {
     </div>`;
   document.getElementById('fs-btn-select').style.display = st === 'verifying' ? 'inline-block' : 'none';
   document.getElementById('fs-btn-reject').style.display = st === 'verifying' ? 'inline-block' : 'none';
+  const pendBtn = document.getElementById('fs-btn-pending');
+  if(pendBtn) pendBtn.style.display = st === 'selected' ? 'inline-block' : 'none';
   document.getElementById('fs-modal').classList.add('open');
 };
 
@@ -3213,6 +3316,7 @@ async function getFsSelectLimit(){
 
 window.fsSelectTeam = async () => {
   if(!currentFsId) return;
+  const team = fsTeams.find(x => x.id === currentFsId);
   try {
     const limit = await getFsSelectLimit();
     const selectedCount = fsTeams.filter(t => t.status === 'selected').length;
@@ -3224,7 +3328,9 @@ window.fsSelectTeam = async () => {
       status: 'selected',
       selectedAt: serverTimestamp()
     });
-    showToast('TEAM SELECTED');
+    showToast('TEAM SELECTED — OPENING WHATSAPP');
+    // Open user's phone on WhatsApp with pre-filled selection message
+    fsOpenSelectWhatsApp(team);
     // if now at limit → auto-delete remaining verifying
     const after = selectedCount + 1;
     if(after >= limit){
@@ -3243,6 +3349,20 @@ window.fsRejectTeam = async () => {
     closeFsModal();
     await loadFreeSlotTeams();
   } catch(e){ showToast('ERROR'); }
+};
+
+/** Move a selected team back to verifying (pending) */
+window.fsPendingTeam = async () => {
+  if(!currentFsId) return;
+  try {
+    await updateDoc(doc(db, 'freeSlotRegs', currentFsId), {
+      status: 'verifying',
+      selectedAt: null
+    });
+    showToast('MOVED TO PENDING');
+    closeFsModal();
+    await loadFreeSlotTeams();
+  } catch(e){ console.error(e); showToast('ERROR'); }
 };
 
 window.fsDeleteTeam = async () => {
